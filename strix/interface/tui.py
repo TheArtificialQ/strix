@@ -757,6 +757,9 @@ class StrixTUIApp(App):  # type: ignore[misc]
         if getattr(args, "local_sources", None):
             config["local_sources"] = args.local_sources
 
+        if getattr(args, "setup_script", None):
+            config["setup_script"] = args.setup_script
+
         return config
 
     def _setup_cleanup_handlers(self) -> None:

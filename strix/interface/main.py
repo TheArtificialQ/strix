@@ -361,6 +361,12 @@ Examples:
     )
 
     parser.add_argument(
+        "--setup-script",
+        type=str,
+        help="Path to a bash script to execute inside the Docker container as the very first step.",
+    )
+
+    parser.add_argument(
         "--config",
         type=str,
         help="Path to a custom config file (JSON) to use instead of ~/.strix/cli-config.json",
@@ -382,6 +388,12 @@ Examples:
                     parser.error(f"Instruction file '{instruction_path}' is empty")
         except Exception as e:  # noqa: BLE001
             parser.error(f"Failed to read instruction file '{instruction_path}': {e}")
+
+    if args.setup_script:
+        setup_script_path = Path(args.setup_script)
+        if not setup_script_path.is_file():
+            parser.error(f"Setup script '{args.setup_script}' does not exist or is not a file")
+        args.setup_script = str(setup_script_path.resolve())
 
     args.targets_info = []
     for target in args.target:
