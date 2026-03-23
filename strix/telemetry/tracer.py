@@ -755,6 +755,10 @@ class Tracer:
                     )
                 logger.info("Updated vulnerability index: %s", vuln_csv_file)
 
+            if mark_complete:
+                self._save_readme(run_dir)
+                self._save_instructions(run_dir)
+
             logger.info("📊 Essential scan data saved to: %s", run_dir)
             if mark_complete and not self._run_completed_emitted:
                 self._emit_event(
@@ -771,6 +775,82 @@ class Tracer:
 
         except (OSError, RuntimeError):
             logger.exception("Failed to save scan data")
+
+    def _save_readme(self, run_dir: Path) -> None:
+        try:
+            from importlib.metadata import PackageNotFoundError
+            from importlib.metadata import version as pkg_version
+
+            app_version = pkg_version("strix-agent")
+        except (ImportError, PackageNotFoundError):
+            app_version = "unknown"
+
+        llm_model = Config.get("strix_llm") or "unknown"
+        date_utc = datetime.now(UTC).strftime("%Y-%m-%d")
+
+        duration_seconds = self._calculate_duration()
+        duration_minutes = round(duration_seconds / 60, 1)
+
+        llm_stats = self.get_total_llm_stats()
+        total_tokens = llm_stats["total_tokens"]
+        total_cost = llm_stats["total"]["cost"]
+        tool_calls = self.get_real_tool_count()
+
+        targets = self.run_metadata.get("targets", [])
+        if targets:
+            target_str = ", ".join(
+                t.get("original", str(t)) if isinstance(t, dict) else str(t)
+                for t in targets
+            )
+        else:
+            target_str = "unknown"
+
+        user_instructions = self.run_metadata.get("user_instructions", "")
+
+        artifacts_lines = []
+        if self.final_scan_result:
+            artifacts_lines.append("Report: [penetration_test_report.md](penetration_test_report.md)")
+        if user_instructions:
+            artifacts_lines.append("Instructions: [instructions.md](instructions.md)")
+
+        artifacts_section = "\n".join(artifacts_lines)
+
+        readme_content = (
+            "# Test run notes\n"
+            "\n"
+            f"Target: {target_str}\n"
+            f"LLM Model: {llm_model}\n"
+            "App: strix\n"
+            f"App Version: {app_version}\n"
+            f"Date (UTC): {date_utc}\n"
+            "\n"
+            "## Results\n"
+            "Score: ??\n"
+            "Note:\n"
+            "\n"
+            "## Usage\n"
+            f"Runtime: {duration_minutes} min\n"
+            f"Tokens (total): {total_tokens}\n"
+            f"Cost (total): ${total_cost}\n"
+            f"Tool calls: {tool_calls}\n"
+            "\n"
+            "## Artifacts\n"
+            f"{artifacts_section}\n"
+        )
+
+        readme_file = run_dir / "README.md"
+        with readme_file.open("w", encoding="utf-8") as f:
+            f.write(readme_content)
+        logger.info("Saved README.md to: %s", readme_file)
+
+    def _save_instructions(self, run_dir: Path) -> None:
+        user_instructions = self.run_metadata.get("user_instructions", "")
+        if not user_instructions:
+            return
+        instructions_file = run_dir / "instructions.md"
+        with instructions_file.open("w", encoding="utf-8") as f:
+            f.write(user_instructions)
+        logger.info("Saved instructions.md to: %s", instructions_file)
 
     def _calculate_duration(self) -> float:
         try:
