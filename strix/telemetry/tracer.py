@@ -1,5 +1,6 @@
 import json
 import logging
+import shutil
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
@@ -591,6 +592,7 @@ class Tracer:
             {
                 "targets": config.get("targets", []),
                 "user_instructions": config.get("user_instructions", ""),
+                "setup_script_path": config.get("setup_script_path", ""),
                 "max_iterations": config.get("max_iterations", 200),
             }
         )
@@ -619,7 +621,9 @@ class Tracer:
                 self.run_metadata["status"] = "completed"
 
             if self.final_scan_result:
-                penetration_test_report_file = run_dir / "penetration_test_report.md"
+                report_dir = run_dir / "report"
+                report_dir.mkdir(exist_ok=True)
+                penetration_test_report_file = report_dir / "penetration_test_report.md"
                 with penetration_test_report_file.open("w", encoding="utf-8") as f:
                     f.write("# Security Penetration Test Report\n\n")
                     f.write(
@@ -632,7 +636,9 @@ class Tracer:
                 )
 
             if self.vulnerability_reports:
-                vuln_dir = run_dir / "vulnerabilities"
+                report_dir = run_dir / "report"
+                report_dir.mkdir(exist_ok=True)
+                vuln_dir = report_dir / "vulnerabilities"
                 vuln_dir.mkdir(exist_ok=True)
 
                 new_reports = [
@@ -728,7 +734,7 @@ class Tracer:
 
                     self._saved_vuln_ids.add(report["id"])
 
-                vuln_csv_file = run_dir / "vulnerabilities.csv"
+                vuln_csv_file = report_dir / "vulnerabilities.csv"
                 with vuln_csv_file.open("w", encoding="utf-8", newline="") as f:
                     import csv
 
@@ -758,6 +764,7 @@ class Tracer:
             if mark_complete:
                 self._save_readme(run_dir)
                 self._save_instructions(run_dir)
+                self._save_setup_script(run_dir)
 
             logger.info("📊 Essential scan data saved to: %s", run_dir)
             if mark_complete and not self._run_completed_emitted:
@@ -809,9 +816,15 @@ class Tracer:
 
         artifacts_lines = []
         if self.final_scan_result:
-            artifacts_lines.append("Report: [penetration_test_report.md](penetration_test_report.md)")
+            artifacts_lines.append(
+                "Report: [report/penetration_test_report.md](report/penetration_test_report.md)"
+            )
         if user_instructions:
             artifacts_lines.append("Instructions: [instructions.md](instructions.md)")
+        setup_script_path = self.run_metadata.get("setup_script_path", "")
+        if setup_script_path:
+            setup_fname = Path(setup_script_path).name
+            artifacts_lines.append(f"Setup script: [{setup_fname}]({setup_fname})")
 
         artifacts_section = "\n".join(artifacts_lines)
 
@@ -842,6 +855,16 @@ class Tracer:
         with readme_file.open("w", encoding="utf-8") as f:
             f.write(readme_content)
         logger.info("Saved README.md to: %s", readme_file)
+
+    def _save_setup_script(self, run_dir: Path) -> None:
+        setup_script_path = self.run_metadata.get("setup_script_path", "")
+        if not setup_script_path:
+            return
+        src = Path(setup_script_path)
+        if src.is_file():
+            dest = run_dir / src.name
+            shutil.copy2(src, dest)
+            logger.info("Copied setup script to: %s", dest)
 
     def _save_instructions(self, run_dir: Path) -> None:
         user_instructions = self.run_metadata.get("user_instructions", "")

@@ -68,10 +68,11 @@ async def run_cli(args: Any) -> None:  # noqa: PLR0915
     scan_mode = getattr(args, "scan_mode", "deep")
 
     scan_config = {
-        "scan_id": args.run_name,
+        "scan_id": args.scan_id,
         "targets": args.targets_info,
         "user_instructions": args.instruction or "",
         "run_name": args.run_name,
+        "setup_script_path": getattr(args, "setup_script", None) or "",
     }
 
     llm_config = LLMConfig(scan_mode=scan_mode)

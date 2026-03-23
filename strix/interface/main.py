@@ -549,7 +549,7 @@ def main() -> None:
 
     persist_config()
 
-    args.run_name = generate_run_name(args.targets_info)
+    args.run_name, args.scan_id = generate_run_name(args.targets_info)
 
     for target_info in args.targets_info:
         if target_info["type"] == "repository":

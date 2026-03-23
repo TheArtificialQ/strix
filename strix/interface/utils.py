@@ -411,6 +411,16 @@ def _slugify_for_run_name(text: str, max_length: int = 32) -> str:
     return text or "pentest"
 
 
+def _sanitize_folder_name_part(text: str, max_length: int = 40) -> str:
+    """Sanitize text for use as a component in a folder name."""
+    text = re.sub(r'[/\\:*?"<>|~\r\n\t]', "", text)
+    text = re.sub(r" {2,}", " ", text)
+    text = text.strip()
+    if len(text) > max_length:
+        text = text[:max_length].rstrip()
+    return text or "unknown"
+
+
 def _derive_target_label_for_run_name(targets_info: list[dict[str, Any]] | None) -> str:  # noqa: PLR0911
     if not targets_info:
         return "pentest"
@@ -450,13 +460,31 @@ def _derive_target_label_for_run_name(targets_info: list[dict[str, Any]] | None)
     return str(original or "pentest")
 
 
-def generate_run_name(targets_info: list[dict[str, Any]] | None = None) -> str:
+def generate_run_name(targets_info: list[dict[str, Any]] | None = None) -> tuple[str, str]:
+    """Return (folder_name, scan_id) where scan_id is safe for Docker container names."""
     base_label = _derive_target_label_for_run_name(targets_info)
     slug = _slugify_for_run_name(base_label)
-
     random_suffix = secrets.token_hex(2)
+    scan_id = f"{slug}_{random_suffix}"
 
-    return f"{slug}_{random_suffix}"
+    try:
+        from importlib.metadata import version as pkg_version  # noqa: PLC0415
+
+        app_version = pkg_version("strix-agent")
+    except Exception:  # noqa: BLE001
+        app_version = "unknown"
+
+    try:
+        from strix.config import Config  # noqa: PLC0415
+
+        llm_model = Config.get("strix_llm") or "unknown"
+    except Exception:  # noqa: BLE001
+        llm_model = "unknown"
+    model_short = llm_model.split("/")[-1] if "/" in llm_model else llm_model
+
+    folder_name = f"VBlog v0.1 ~ strix v{app_version} ~ {model_short} ~ {scan_id}"
+
+    return folder_name, scan_id
 
 
 # Target processing utilities

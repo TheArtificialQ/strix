@@ -738,10 +738,11 @@ class StrixTUIApp(App):  # type: ignore[misc]
 
     def _build_scan_config(self, args: argparse.Namespace) -> dict[str, Any]:
         return {
-            "scan_id": args.run_name,
+            "scan_id": args.scan_id,
             "targets": args.targets_info,
             "user_instructions": args.instruction or "",
             "run_name": args.run_name,
+            "setup_script_path": getattr(args, "setup_script", None) or "",
         }
 
     def _build_agent_config(self, args: argparse.Namespace) -> dict[str, Any]:
