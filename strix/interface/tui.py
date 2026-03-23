@@ -759,6 +759,9 @@ class StrixTUIApp(App):  # type: ignore[misc]
         if getattr(args, "setup_script", None):
             config["setup_script"] = args.setup_script
 
+        if getattr(args, "network", None):
+            config["network"] = args.network
+
         return config
 
     def _setup_cleanup_handlers(self) -> None:

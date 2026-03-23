@@ -35,6 +35,10 @@ strix --target <target> [options]
   Path to a bash script to execute inside the Docker container as the very first step, before the scan begins. Useful for installing dependencies, seeding databases, establishing VPN connections, or any other environment preparation.
 </ParamField>
 
+<ParamField path="--network" type="string">
+  Docker network to connect the container to. Accepts a network name (e.g., `my-network`) or a built-in mode such as `host` or `bridge`. Useful when the target is only reachable through a specific Docker network.
+</ParamField>
+
 <ParamField path="--config" type="string">
   Path to a custom config file (JSON) to use instead of `~/.strix/cli-config.json`.
 </ParamField>
@@ -56,6 +60,9 @@ strix -n --target ./ --scan-mode quick
 
 # Multi-target white-box testing
 strix -t https://github.com/org/app -t https://staging.example.com
+
+# Connect container to a custom Docker network
+strix --target https://internal.example.com --network my-network
 ```
 
 ## Exit Codes

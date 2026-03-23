@@ -364,6 +364,12 @@ Examples:
     )
 
     parser.add_argument(
+        "--network",
+        type=str,
+        help="Docker network to connect the container to (e.g., 'host', 'bridge', or a custom network name).",
+    )
+
+    parser.add_argument(
         "--config",
         type=str,
         help="Path to a custom config file (JSON) to use instead of ~/.strix/cli-config.json",
