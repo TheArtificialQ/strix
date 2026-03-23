@@ -40,7 +40,7 @@ if ! command -v poetry &> /dev/null; then
 fi
 
 echo -e "\n${BLUE}Installing dependencies...${NC}"
-poetry install --with dev
+poetry install --with dev --extras vertex
 
 VERSION=$(poetry version -s)
 echo -e "${YELLOW}Version:${NC} $VERSION"

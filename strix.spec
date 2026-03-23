@@ -142,7 +142,14 @@ hiddenimports = [
     'strix.tools.executor',
     'strix.tools.argument_parser',
     'strix.skills',
+
 ]
+
+# Google Cloud / Vertex AI — must use collect_submodules because google.* are
+# namespace packages that PyInstaller won't find via plain hiddenimports entries
+hiddenimports += collect_submodules('google.auth')
+hiddenimports += collect_submodules('google.oauth2')
+hiddenimports += collect_submodules('google.api_core')
 
 # Note: collect_submodules('litellm') is intentionally omitted — the litellm
 # integration `focus` pulls in polars which requires AVX/AVX2 and crashes
@@ -167,17 +174,6 @@ excludes = [
     'fastapi',
     'uvicorn',
     'numpydoc',
-
-    # Google Cloud / Vertex AI
-    'google.cloud',
-    'google.cloud.aiplatform',
-    'google.api_core',
-    'google.auth',
-    'google.oauth2',
-    'google.protobuf',
-    'grpc',
-    'grpcio',
-    'grpcio_status',
 
     # Test frameworks
     'pytest',
