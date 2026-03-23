@@ -83,6 +83,9 @@ async def run_cli(args: Any) -> None:  # noqa: PLR0915
     if getattr(args, "local_sources", None):
         agent_config["local_sources"] = args.local_sources
 
+    if getattr(args, "setup_script", None):
+        agent_config["setup_script"] = args.setup_script
+
     tracer = Tracer(args.run_name)
     tracer.set_scan_config(scan_config)
 

@@ -56,6 +56,7 @@ class BaseAgent(metaclass=AgentMeta):
         self.config = config
 
         self.local_sources = config.get("local_sources", [])
+        self.setup_script = config.get("setup_script")
 
         if "max_iterations" in config:
             self.max_iterations = config["max_iterations"]
@@ -337,7 +338,10 @@ class BaseAgent(metaclass=AgentMeta):
             try:
                 runtime = get_runtime()
                 sandbox_info = await runtime.create_sandbox(
-                    self.state.agent_id, self.state.sandbox_token, self.local_sources
+                    self.state.agent_id,
+                    self.state.sandbox_token,
+                    self.local_sources,
+                    setup_script=self.setup_script,
                 )
                 self.state.sandbox_id = sandbox_info["workspace_id"]
                 self.state.sandbox_token = sandbox_info["auth_token"]

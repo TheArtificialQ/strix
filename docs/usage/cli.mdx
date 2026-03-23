@@ -31,6 +31,10 @@ strix --target <target> [options]
   Run in headless mode without TUI. Ideal for CI/CD.
 </ParamField>
 
+<ParamField path="--setup-script" type="string">
+  Path to a bash script to execute inside the Docker container as the very first step, before the scan begins. Useful for installing dependencies, seeding databases, establishing VPN connections, or any other environment preparation.
+</ParamField>
+
 <ParamField path="--config" type="string">
   Path to a custom config file (JSON) to use instead of `~/.strix/cli-config.json`.
 </ParamField>
