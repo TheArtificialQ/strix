@@ -305,8 +305,13 @@ def build_live_stats_text(tracer: Any, agent_config: dict[str, Any] | None = Non
     if agent_config:
         llm_config = agent_config["llm_config"]
         model = getattr(llm_config, "model_name", "Unknown")
-        stats_text.append("Model ", style="dim")
+        subagent_model = getattr(llm_config, "subagent_model_name", model)
+        stats_text.append("Driver ", style="dim")
         stats_text.append(model, style="white")
+        if subagent_model and subagent_model != model:
+            stats_text.append("\n")
+            stats_text.append("Subagents ", style="dim")
+            stats_text.append(subagent_model, style="white")
         stats_text.append("\n")
 
     vuln_count = len(tracer.vulnerability_reports)
@@ -378,7 +383,12 @@ def build_tui_stats_text(tracer: Any, agent_config: dict[str, Any] | None = None
     if agent_config:
         llm_config = agent_config["llm_config"]
         model = getattr(llm_config, "model_name", "Unknown")
+        subagent_model = getattr(llm_config, "subagent_model_name", model)
         stats_text.append(model, style="white")
+        if subagent_model and subagent_model != model:
+            stats_text.append("\n", style="white")
+            stats_text.append("Subagents: ", style="dim")
+            stats_text.append(subagent_model, style="white")
 
     llm_stats = tracer.get_total_llm_stats()
     total_stats = llm_stats["total"]

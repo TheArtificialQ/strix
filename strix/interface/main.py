@@ -82,6 +82,9 @@ def validate_environment() -> None:  # noqa: PLR0912, PLR0915
     if not Config.get("strix_reasoning_effort"):
         missing_optional_vars.append("STRIX_REASONING_EFFORT")
 
+    if not Config.get("strix_subagent_llm"):
+        missing_optional_vars.append("STRIX_SUBAGENT_LLM")
+
     if missing_required_vars:
         error_text = Text()
         error_text.append("MISSING REQUIRED ENVIRONMENT VARIABLES", style="bold red")
@@ -140,6 +143,13 @@ def validate_environment() -> None:  # noqa: PLR0912, PLR0915
                         "(default: high)\n",
                         style="white",
                     )
+                elif var == "STRIX_SUBAGENT_LLM":
+                    error_text.append("• ", style="white")
+                    error_text.append("STRIX_SUBAGENT_LLM", style="bold cyan")
+                    error_text.append(
+                        " - Optional dedicated model for subagents; defaults to STRIX_LLM\n",
+                        style="white",
+                    )
 
         error_text.append("\nExample setup:\n", style="white")
         error_text.append("export STRIX_LLM='openai/gpt-5.4'\n", style="dim white")
@@ -165,6 +175,12 @@ def validate_environment() -> None:  # noqa: PLR0912, PLR0915
                 elif var == "STRIX_REASONING_EFFORT":
                     error_text.append(
                         "export STRIX_REASONING_EFFORT='high'\n",
+                        style="dim white",
+                    )
+                elif var == "STRIX_SUBAGENT_LLM":
+                    error_text.append(
+                        "export STRIX_SUBAGENT_LLM='openai/gpt-4.1-mini'  "
+                        "# optional dedicated model for subagents\n",
                         style="dim white",
                     )
 
@@ -208,36 +224,46 @@ async def warm_up_llm() -> None:
     console = Console()
 
     try:
-        model_name, api_key, api_base = resolve_llm_config()
-        litellm_model, _ = resolve_strix_model(model_name)
-        litellm_model = litellm_model or model_name
-
-        test_messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Reply with just 'OK'."},
-        ]
-
         llm_timeout = int(Config.get("llm_timeout") or "300")
+        configs_to_check = [("driver", resolve_llm_config(role="root"))]
 
-        completion_kwargs: dict[str, Any] = {
-            "model": litellm_model,
-            "messages": test_messages,
-            "timeout": llm_timeout,
-        }
-        if api_key:
-            completion_kwargs["api_key"] = api_key
-        if api_base:
-            completion_kwargs["api_base"] = api_base
+        subagent_config = resolve_llm_config(role="subagent")
+        if subagent_config != configs_to_check[0][1]:
+            configs_to_check.append(("subagent", subagent_config))
 
-        response = litellm.completion(**completion_kwargs)
+        for label, (model_name, api_key, api_base) in configs_to_check:
+            try:
+                litellm_model, _ = resolve_strix_model(model_name)
+                litellm_model = litellm_model or model_name
 
-        validate_llm_response(response)
+                test_messages = [
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "Reply with just 'OK'."},
+                ]
+
+                completion_kwargs: dict[str, Any] = {
+                    "model": litellm_model,
+                    "messages": test_messages,
+                    "timeout": llm_timeout,
+                }
+                if api_key:
+                    completion_kwargs["api_key"] = api_key
+                if api_base:
+                    completion_kwargs["api_base"] = api_base
+
+                response = litellm.completion(**completion_kwargs)
+                validate_llm_response(response)
+            except Exception as e:  # noqa: BLE001
+                raise RuntimeError(f"Failed to validate the {label} model: {e}") from e
 
     except Exception as e:  # noqa: BLE001
         error_text = Text()
         error_text.append("LLM CONNECTION FAILED", style="bold red")
         error_text.append("\n\n", style="white")
-        error_text.append("Could not establish connection to the language model.\n", style="white")
+        error_text.append(
+            "Could not establish connection to the configured driver or subagent model.\n",
+            style="white",
+        )
         error_text.append("Please check your configuration and try again.\n", style="white")
         error_text.append(f"\nError: {e}", style="dim white")
 

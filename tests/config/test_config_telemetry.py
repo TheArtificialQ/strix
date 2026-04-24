@@ -13,6 +13,14 @@ def test_traceloop_vars_are_tracked() -> None:
     assert "TRACELOOP_HEADERS" in tracked
 
 
+def test_subagent_llm_vars_are_tracked() -> None:
+    tracked = Config.tracked_vars()
+
+    assert "STRIX_SUBAGENT_LLM" in tracked
+    assert "STRIX_SUBAGENT_LLM_API_KEY" in tracked
+    assert "STRIX_SUBAGENT_LLM_API_BASE" in tracked
+
+
 def test_apply_saved_uses_saved_traceloop_vars(monkeypatch, tmp_path) -> None:
     config_path = tmp_path / "cli-config.json"
     config_path.write_text(
@@ -53,3 +61,30 @@ def test_apply_saved_respects_existing_env_traceloop_vars(monkeypatch, tmp_path)
     applied = Config.apply_saved(force=False)
 
     assert "TRACELOOP_BASE_URL" not in applied
+
+
+def test_apply_saved_uses_saved_subagent_llm_vars(monkeypatch, tmp_path) -> None:
+    config_path = tmp_path / "cli-config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "env": {
+                    "STRIX_SUBAGENT_LLM": "openai/gpt-4.1-mini",
+                    "STRIX_SUBAGENT_LLM_API_KEY": "subagent-key",
+                    "STRIX_SUBAGENT_LLM_API_BASE": "https://models.example.com/v1",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(Config, "_config_file_override", config_path)
+    monkeypatch.delenv("STRIX_SUBAGENT_LLM", raising=False)
+    monkeypatch.delenv("STRIX_SUBAGENT_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("STRIX_SUBAGENT_LLM_API_BASE", raising=False)
+
+    applied = Config.apply_saved()
+
+    assert applied["STRIX_SUBAGENT_LLM"] == "openai/gpt-4.1-mini"
+    assert applied["STRIX_SUBAGENT_LLM_API_KEY"] == "subagent-key"
+    assert applied["STRIX_SUBAGENT_LLM_API_BASE"] == "https://models.example.com/v1"

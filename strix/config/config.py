@@ -2,7 +2,7 @@ import contextlib
 import json
 import os
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 
 STRIX_API_BASE = "https://models.strix.ai/api/v1"
@@ -13,6 +13,9 @@ class Config:
 
     # LLM Configuration
     strix_llm = None
+    strix_subagent_llm = None
+    strix_subagent_llm_api_key = None
+    strix_subagent_llm_api_base = None
     llm_api_key = None
     llm_api_base = None
     openai_api_base = None
@@ -24,6 +27,9 @@ class Config:
     llm_timeout = "300"
     _LLM_CANONICAL_NAMES = (
         "strix_llm",
+        "strix_subagent_llm",
+        "strix_subagent_llm_api_key",
+        "strix_subagent_llm_api_base",
         "llm_api_key",
         "llm_api_base",
         "openai_api_base",
@@ -196,8 +202,29 @@ def save_current_config() -> bool:
     return Config.save_current()
 
 
-def resolve_llm_config() -> tuple[str | None, str | None, str | None]:
-    """Resolve LLM model, api_key, and api_base based on STRIX_LLM prefix.
+def _resolve_api_base(model: str | None, explicit_api_base: str | None = None) -> str | None:
+    if not model:
+        return None
+
+    if model.startswith("strix/"):
+        return STRIX_API_BASE
+
+    return (
+        explicit_api_base
+        or Config.get("llm_api_base")
+        or Config.get("openai_api_base")
+        or Config.get("litellm_base_url")
+        or Config.get("ollama_api_base")
+    )
+
+
+def resolve_llm_config(
+    role: Literal["root", "subagent"] = "root",
+    fallback_model: str | None = None,
+    fallback_api_key: str | None = None,
+    fallback_api_base: str | None = None,
+) -> tuple[str | None, str | None, str | None]:
+    """Resolve model, api_key, and api_base for the requested agent role.
 
     Returns:
         tuple: (model_name, api_key, api_base)
@@ -205,20 +232,27 @@ def resolve_llm_config() -> tuple[str | None, str | None, str | None]:
         - api_key: LLM API key
         - api_base: API base URL (auto-set to STRIX_API_BASE for strix/ models)
     """
-    model = Config.get("strix_llm")
+    if role == "subagent":
+        configured_subagent_model = Config.get("strix_subagent_llm")
+        model = configured_subagent_model or fallback_model or Config.get("strix_llm")
+        api_key = (
+            Config.get("strix_subagent_llm_api_key")
+            or fallback_api_key
+            or Config.get("llm_api_key")
+        )
+        explicit_api_base = Config.get("strix_subagent_llm_api_base")
+        if explicit_api_base is None and not configured_subagent_model:
+            explicit_api_base = fallback_api_base
+    elif role == "root":
+        model = fallback_model or Config.get("strix_llm")
+        api_key = fallback_api_key or Config.get("llm_api_key")
+        explicit_api_base = fallback_api_base
+    else:
+        raise ValueError(f"Unsupported LLM config role: {role}")
+
     if not model:
         return None, None, None
 
-    api_key = Config.get("llm_api_key")
-
-    if model.startswith("strix/"):
-        api_base: str | None = STRIX_API_BASE
-    else:
-        api_base = (
-            Config.get("llm_api_base")
-            or Config.get("openai_api_base")
-            or Config.get("litellm_base_url")
-            or Config.get("ollama_api_base")
-        )
+    api_base = _resolve_api_base(model, explicit_api_base)
 
     return model, api_key, api_base

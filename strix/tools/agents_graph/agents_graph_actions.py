@@ -412,6 +412,9 @@ def create_agent(
         scan_mode = "deep"
         is_whitebox = False
         interactive = False
+        model_name = None
+        api_key = None
+        api_base = None
         if parent_agent and hasattr(parent_agent, "llm_config"):
             if hasattr(parent_agent.llm_config, "timeout"):
                 timeout = parent_agent.llm_config.timeout
@@ -420,6 +423,9 @@ def create_agent(
             if hasattr(parent_agent.llm_config, "is_whitebox"):
                 is_whitebox = parent_agent.llm_config.is_whitebox
             interactive = getattr(parent_agent.llm_config, "interactive", False)
+            model_name = getattr(parent_agent.llm_config, "subagent_model_name", None)
+            api_key = getattr(parent_agent.llm_config, "subagent_api_key", None)
+            api_base = getattr(parent_agent.llm_config, "subagent_api_base", None)
 
         if is_whitebox:
             whitebox_guidance = (
@@ -446,6 +452,10 @@ def create_agent(
             waiting_timeout=300 if interactive else 600,
         )
         llm_config = LLMConfig(
+            role="subagent",
+            model_name=model_name,
+            api_key=api_key,
+            api_base=api_base,
             skills=skill_list,
             timeout=timeout,
             scan_mode=scan_mode,
@@ -455,6 +465,7 @@ def create_agent(
 
         agent_config = {
             "llm_config": llm_config,
+            "llm_config_name": "subagent",
             "state": state,
         }
 

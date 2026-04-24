@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import strix.agents as agents_module
+from strix.config.config import resolve_llm_config
 from strix.llm.config import LLMConfig
 from strix.tools.agents_graph import agents_graph_actions
 
@@ -20,11 +21,19 @@ def _reset_agent_graph_state() -> None:
 
 def test_create_agent_inherits_parent_whitebox_flag(monkeypatch) -> None:
     monkeypatch.setenv("STRIX_LLM", "openai/gpt-5")
+    monkeypatch.setenv("STRIX_SUBAGENT_LLM", "openai/gpt-4.1-mini")
 
     _reset_agent_graph_state()
 
     parent_id = "parent-agent"
-    parent_llm = LLMConfig(timeout=123, scan_mode="standard", is_whitebox=True)
+    parent_llm = LLMConfig(
+        model_name="openai/gpt-5.4",
+        api_key="root-key",
+        api_base="https://driver.example.com/v1",
+        timeout=123,
+        scan_mode="standard",
+        is_whitebox=True,
+    )
     agents_graph_actions._agent_instances[parent_id] = SimpleNamespace(
         llm_config=parent_llm,
         non_interactive=True,
@@ -66,9 +75,44 @@ def test_create_agent_inherits_parent_whitebox_flag(monkeypatch) -> None:
     assert llm_config.timeout == 123
     assert llm_config.scan_mode == "standard"
     assert llm_config.is_whitebox is True
+    assert llm_config.model_name == "openai/gpt-4.1-mini"
+    assert llm_config.api_base is None
     child_task = captured_config["agent_config"]["state"].task
     assert "White-box execution guidance (recommended when source is available):" in child_task
     assert "mandatory" not in child_task.lower()
+
+
+def test_resolve_llm_config_subagent_falls_back_to_root(monkeypatch) -> None:
+    monkeypatch.setenv("STRIX_LLM", "openai/gpt-5")
+    monkeypatch.delenv("STRIX_SUBAGENT_LLM", raising=False)
+
+    model_name, api_key, api_base = resolve_llm_config(role="subagent")
+
+    assert model_name == "openai/gpt-5"
+    assert api_key is None
+    assert api_base is None
+
+
+def test_llm_config_subagent_inherits_parent_connection_defaults(monkeypatch) -> None:
+    monkeypatch.delenv("STRIX_LLM", raising=False)
+    monkeypatch.delenv("STRIX_SUBAGENT_LLM", raising=False)
+
+    parent_llm = LLMConfig(
+        model_name="openai/gpt-5.4",
+        api_key="root-key",
+        api_base="https://driver.example.com/v1",
+    )
+
+    child_llm = LLMConfig(
+        role="subagent",
+        model_name=parent_llm.subagent_model_name,
+        api_key=parent_llm.subagent_api_key,
+        api_base=parent_llm.subagent_api_base,
+    )
+
+    assert child_llm.model_name == "openai/gpt-5.4"
+    assert child_llm.api_key == "root-key"
+    assert child_llm.api_base == "https://driver.example.com/v1"
 
 
 def test_delegation_prompt_includes_wiki_memory_instruction_in_whitebox(monkeypatch) -> None:

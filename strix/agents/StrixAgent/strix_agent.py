@@ -8,13 +8,12 @@ class StrixAgent(BaseAgent):
     max_iterations = 300
 
     def __init__(self, config: dict[str, Any]):
-        default_skills = []
-
         state = config.get("state")
-        if state is None or (hasattr(state, "parent_id") and state.parent_id is None):
-            default_skills = ["root_agent"]
+        is_root_agent = state is None or (hasattr(state, "parent_id") and state.parent_id is None)
+        default_skills = ["root_agent"] if is_root_agent else []
+        default_role = "root" if is_root_agent else "subagent"
 
-        self.default_llm_config = LLMConfig(skills=default_skills)
+        self.default_llm_config = LLMConfig(skills=default_skills, role=default_role)
 
         super().__init__(config)
 

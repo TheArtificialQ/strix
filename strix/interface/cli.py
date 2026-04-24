@@ -77,11 +77,13 @@ async def run_cli(args: Any) -> None:  # noqa: PLR0915
     }
 
     llm_config = LLMConfig(
+        role="root",
         scan_mode=scan_mode,
         is_whitebox=bool(getattr(args, "local_sources", [])),
     )
     agent_config = {
         "llm_config": llm_config,
+        "llm_config_name": "root",
         "max_iterations": 300,
     }
 

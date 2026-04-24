@@ -84,6 +84,9 @@ curl -sSL https://strix.ai/install | bash
 export STRIX_LLM="openai/gpt-5.4"
 export LLM_API_KEY="your-api-key"
 
+# Optional: use a smaller or cheaper model for delegated subagents
+export STRIX_SUBAGENT_LLM="openai/gpt-4.1-mini"
+
 # Run your first security assessment
 strix --target ./app-directory
 ```
@@ -229,6 +232,7 @@ export STRIX_LLM="openai/gpt-5.4"
 export LLM_API_KEY="your-api-key"
 
 # Optional
+export STRIX_SUBAGENT_LLM="openai/gpt-4.1-mini"  # dedicated model for subagents
 export LLM_API_BASE="your-api-base-url"  # if using a local model, e.g. Ollama, LMStudio
 export PERPLEXITY_API_KEY="your-api-key"  # for search capabilities
 export STRIX_REASONING_EFFORT="high"  # control thinking effort (default: high, quick scan: medium)

@@ -87,6 +87,8 @@ def _summarize_messages(
     messages: list[dict[str, Any]],
     model: str,
     timeout: int = 30,
+    api_key: str | None = None,
+    api_base: str | None = None,
 ) -> dict[str, Any]:
     if not messages:
         empty_summary = "<context_summary message_count='0'>{text}</context_summary>"
@@ -104,7 +106,10 @@ def _summarize_messages(
     conversation = "\n".join(formatted)
     prompt = SUMMARY_PROMPT_TEMPLATE.format(conversation=conversation)
 
-    _, api_key, api_base = resolve_llm_config()
+    if api_key is None or api_base is None:
+        _, resolved_api_key, resolved_api_base = resolve_llm_config()
+        api_key = api_key or resolved_api_key
+        api_base = api_base or resolved_api_base
 
     try:
         completion_args: dict[str, Any] = {
@@ -155,10 +160,14 @@ class MemoryCompressor:
         max_images: int = 3,
         model_name: str | None = None,
         timeout: int | None = None,
+        api_key: str | None = None,
+        api_base: str | None = None,
     ):
         self.max_images = max_images
         self.model_name = model_name or Config.get("strix_llm")
         self.timeout = timeout or int(Config.get("strix_memory_compressor_timeout") or "120")
+        self.api_key = api_key
+        self.api_base = api_base
 
         if not self.model_name:
             raise ValueError("STRIX_LLM environment variable must be set and not empty")
@@ -212,7 +221,13 @@ class MemoryCompressor:
         chunk_size = 10
         for i in range(0, len(old_msgs), chunk_size):
             chunk = old_msgs[i : i + chunk_size]
-            summary = _summarize_messages(chunk, model_name, self.timeout)
+            summary = _summarize_messages(
+                chunk,
+                model_name,
+                self.timeout,
+                api_key=self.api_key,
+                api_base=self.api_base,
+            )
             if summary:
                 compressed.append(summary)
 

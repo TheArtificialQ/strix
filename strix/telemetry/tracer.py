@@ -795,6 +795,7 @@ class Tracer:
             app_version = "unknown"
 
         llm_model = Config.get("strix_llm") or "unknown"
+        subagent_llm_model = Config.get("strix_subagent_llm") or llm_model
         date_utc = datetime.now(UTC).strftime("%Y-%m-%d")
 
         duration_seconds = self._calculate_duration()
@@ -830,11 +831,18 @@ class Tracer:
 
         artifacts_section = "\n".join(artifacts_lines)
 
+        subagent_model_line = (
+            f"Subagent LLM Model: {subagent_llm_model}\n"
+            if subagent_llm_model != llm_model
+            else ""
+        )
+
         readme_content = (
             "# Test run notes\n"
             "\n"
             f"Target: {target_str}\n"
-            f"LLM Model: {llm_model}\n"
+            f"Driver LLM Model: {llm_model}\n"
+            f"{subagent_model_line}"
             "App: strix\n"
             f"App Version: {app_version}\n"
             f"Date (UTC): {date_utc}\n"
