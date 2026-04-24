@@ -4,7 +4,7 @@ import secrets
 import socket
 import time
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import docker
 import httpx
@@ -108,7 +108,7 @@ class DockerRuntime(AbstractRuntime):
             "Container initialization timed out. Please try again.",
         )
 
-    def _create_container(self, scan_id: str, max_retries: int = 2) -> Container:
+    def _create_container(self, scan_id: str, max_retries: int = 2, network: str | None = None) -> Container:
         container_name = f"strix-scan-{scan_id}"
         image_name = Config.get("strix_image")
         if not image_name:
@@ -131,28 +131,41 @@ class DockerRuntime(AbstractRuntime):
                 self._tool_server_token = secrets.token_urlsafe(32)
                 execution_timeout = Config.get("strix_sandbox_execution_timeout") or "120"
 
-                container = self.client.containers.run(
-                    image_name,
-                    command="sleep infinity",
-                    detach=True,
-                    name=container_name,
-                    hostname=container_name,
-                    ports={
+                run_kwargs: dict[str, Any] = {
+                    "command": "sleep infinity",
+                    "detach": True,
+                    "name": container_name,
+                    "hostname": container_name,
+                    "ports": {
                         f"{CONTAINER_TOOL_SERVER_PORT}/tcp": self._tool_server_port,
                         f"{CONTAINER_CAIDO_PORT}/tcp": self._caido_port,
                     },
-                    cap_add=["NET_ADMIN", "NET_RAW"],
-                    labels={"strix-scan-id": scan_id},
-                    environment={
+                    "cap_add": ["NET_ADMIN", "NET_RAW"],
+                    "labels": {"strix-scan-id": scan_id},
+                    "environment": {
                         "PYTHONUNBUFFERED": "1",
                         "TOOL_SERVER_PORT": str(CONTAINER_TOOL_SERVER_PORT),
                         "TOOL_SERVER_TOKEN": self._tool_server_token,
                         "STRIX_SANDBOX_EXECUTION_TIMEOUT": str(execution_timeout),
                         "HOST_GATEWAY": HOST_GATEWAY_HOSTNAME,
                     },
-                    extra_hosts={HOST_GATEWAY_HOSTNAME: "host-gateway"},
-                    tty=True,
-                )
+                    "extra_hosts": {HOST_GATEWAY_HOSTNAME: "host-gateway"},
+                    "tty": True,
+                }
+                container = self.client.containers.run(image_name, **run_kwargs)
+
+                if network:
+                    try:
+                        docker_network = self.client.networks.get(network)
+                        docker_network.connect(container)
+                    except DockerException as net_err:
+                        with contextlib.suppress(Exception):
+                            container.stop(timeout=5)
+                        container.remove(force=True)
+                        raise SandboxInitializationError(
+                            "Failed to connect container to network",
+                            f"Could not connect to Docker network '{network}': {net_err}",
+                        ) from net_err
 
                 self._scan_container = container
                 self._wait_for_tool_server()
@@ -172,7 +185,7 @@ class DockerRuntime(AbstractRuntime):
             f"Container creation failed after {max_retries + 1} attempts: {last_error}",
         ) from last_error
 
-    def _get_or_create_container(self, scan_id: str) -> Container:
+    def _get_or_create_container(self, scan_id: str, network: str | None = None) -> Container:
         container_name = f"strix-scan-{scan_id}"
 
         if self._scan_container:
@@ -217,7 +230,7 @@ class DockerRuntime(AbstractRuntime):
         except DockerException:
             pass
 
-        return self._create_container(scan_id)
+        return self._create_container(scan_id, network=network)
 
     def _copy_local_directory_to_container(
         self, container: Container, local_path: str, target_name: str | None = None
@@ -336,9 +349,10 @@ class DockerRuntime(AbstractRuntime):
         existing_token: str | None = None,
         local_sources: list[dict[str, str]] | None = None,
         setup_script: str | None = None,
+        network: str | None = None,
     ) -> SandboxInfo:
         scan_id = self._get_scan_id(agent_id)
-        container = self._get_or_create_container(scan_id)
+        container = self._get_or_create_container(scan_id, network=network)
 
         setup_script_key = f"_setup_script_executed_{scan_id}"
         if setup_script and not hasattr(self, setup_script_key):
