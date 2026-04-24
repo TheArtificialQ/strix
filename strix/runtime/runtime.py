@@ -18,6 +18,7 @@ class AbstractRuntime(ABC):
         agent_id: str,
         existing_token: str | None = None,
         local_sources: list[dict[str, str]] | None = None,
+        setup_script: str | None = None,
     ) -> SandboxInfo:
         raise NotImplementedError
 

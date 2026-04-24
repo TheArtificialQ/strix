@@ -247,14 +247,104 @@ class DockerRuntime(AbstractRuntime):
         except (OSError, DockerException):
             pass
 
+    def _run_setup_script(self, container: Container, script_path: str, agent_id: str) -> bool:
+        import tarfile
+        from io import BytesIO
+
+        from strix.telemetry.tracer import get_global_tracer
+
+        tracer = get_global_tracer()
+
+        def _print_error(detail: str) -> None:
+            if tracer and exec_id is not None:
+                tracer.update_tool_execution(exec_id, "failed", {"error": detail})
+                tracer.clear_streaming_content(agent_id)
+
+        # Record the start of setup script execution in telemetry so the tracer
+        # can correlate streaming output with this specific tool invocation.
+        exec_id = None
+        if tracer:
+            exec_id = tracer.log_tool_execution_start(
+                agent_id, "setup_script", {"script": script_path}
+            )
+
+        try:
+            script_bytes = Path(script_path).read_bytes()
+        except OSError as e:
+            _print_error(f"Could not read '{script_path}': {e}")
+            return False
+
+        # Docker's put_archive API requires a tar archive — wrap the script in one
+        # before uploading it to /workspace inside the container.
+        tar_buffer = BytesIO()
+        with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
+            info = tarfile.TarInfo(name="setup_script.sh")
+            info.size = len(script_bytes)
+            info.mode = 0o755
+            tar.addfile(info, BytesIO(script_bytes))
+        tar_buffer.seek(0)
+
+        try:
+            if container.client is None:
+                _print_error("Container has no Docker client")
+                return False
+            client_api = container.client.api
+
+            container.put_archive("/workspace", tar_buffer.getvalue())
+            exec_handle = cast(
+                "str",
+                client_api.exec_create(
+                    container.id,
+                    "bash /workspace/setup_script.sh",
+                    user="root",
+                ),
+            )
+            # Stream output chunk-by-chunk so the user sees progress in real time
+            # and the tracer receives incremental updates rather than one large blob.
+            output_chunks: list[bytes] = []
+            accumulated = ""
+            for chunk in cast("list[bytes]", client_api.exec_start(exec_handle, stream=True)):
+                text = chunk.decode(errors="replace")
+                output_chunks.append(chunk)
+                accumulated += text
+                if tracer:
+                    tracer.update_streaming_content(agent_id, accumulated)
+            exit_code = client_api.exec_inspect(exec_handle)["ExitCode"]
+        except DockerException as e:
+            _print_error(f"Failed to run setup script in container: {e}")
+            return False
+
+        output_str = b"".join(output_chunks).decode(errors="replace").strip()
+
+        # A non-zero exit code means the script itself reported failure; treat it
+        # the same as a Docker-level error so the caller can react consistently.
+        if exit_code != 0:
+            detail = f"Script exited with code {exit_code}"
+            if output_str:
+                detail += f":\n{output_str}"
+            _print_error(detail)
+            return False
+
+        if tracer and exec_id is not None:
+            tracer.update_tool_execution(exec_id, "completed", {"output": output_str})
+            tracer.clear_streaming_content(agent_id)
+        return True
+
     async def create_sandbox(
         self,
         agent_id: str,
         existing_token: str | None = None,
         local_sources: list[dict[str, str]] | None = None,
+        setup_script: str | None = None,
     ) -> SandboxInfo:
         scan_id = self._get_scan_id(agent_id)
         container = self._get_or_create_container(scan_id)
+
+        setup_script_key = f"_setup_script_executed_{scan_id}"
+        if setup_script and not hasattr(self, setup_script_key):
+            if not self._run_setup_script(container, setup_script, agent_id):
+                raise RuntimeError("Setup script failed")
+            setattr(self, setup_script_key, True)
 
         source_copied_key = f"_source_copied_{scan_id}"
         if local_sources and not hasattr(self, source_copied_key):
