@@ -17,6 +17,7 @@ class ScanStartInfoRenderer(BaseToolRenderer):
         args = tool_data.get("args", {})
         status = tool_data.get("status", "unknown")
         targets = args.get("targets", [])
+        model_name = str(args.get("model_name", "") or "")
 
         text = Text()
         text.append("◈ ", style="#22c55e")
@@ -30,6 +31,11 @@ class ScanStartInfoRenderer(BaseToolRenderer):
             for target_info in targets:
                 text.append("\n   • ")
                 text.append(cls._get_target_display(target_info))
+
+        if model_name:
+            text.append("\n  ")
+            text.append("Model ", style="dim")
+            text.append(model_name, style="white")
 
         css_classes = cls.get_css_classes(status)
         return Static(text, classes=css_classes)
@@ -54,11 +60,17 @@ class SubagentStartInfoRenderer(BaseToolRenderer):
 
         name = str(args.get("name", "Unknown Agent"))
         task = str(args.get("task", ""))
+        model_name = str(args.get("model_name", "") or "")
 
         text = Text()
         text.append("◈ ", style="#a78bfa")
         text.append("subagent ", style="dim")
         text.append(name, style="bold #a78bfa")
+
+        if model_name:
+            text.append("\n  ")
+            text.append("Model ", style="dim")
+            text.append(model_name, style="white")
 
         if task:
             text.append("\n  ")

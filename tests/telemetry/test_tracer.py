@@ -358,6 +358,29 @@ def test_get_total_llm_stats_includes_completed_subagents(monkeypatch, tmp_path)
     }
 
 
+def test_log_agent_creation_records_model_name(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    tracer = Tracer("agent-model-metadata")
+    set_global_tracer(tracer)
+
+    tracer.log_agent_creation(
+        "agent-1",
+        "Root Agent",
+        "scan auth",
+        model_name="openai/gpt-5.4",
+    )
+
+    assert tracer.agents["agent-1"]["model_name"] == "openai/gpt-5.4"
+
+    events_path = tmp_path / "strix_runs" / "agent-model-metadata" / "events.jsonl"
+    events = _load_events(events_path)
+    created_event = next(event for event in events if event["event_type"] == "agent.created")
+
+    assert created_event["payload"]["model_name"] == "openai/gpt-5.4"
+
+
+
 def test_run_metadata_is_only_on_run_lifecycle_events(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
 

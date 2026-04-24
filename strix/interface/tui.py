@@ -946,23 +946,7 @@ class StrixTUIApp(App):  # type: ignore[misc]
 
         try:
             agent_node = self.agent_nodes[agent_id]
-            agent_name_raw = agent_data.get("name", "Agent")
-            status = agent_data.get("status", "running")
-
-            status_indicators = {
-                "running": "⚪",
-                "waiting": "⏸",
-                "completed": "🟢",
-                "failed": "🔴",
-                "stopped": "■",
-                "stopping": "○",
-                "llm_failed": "🔴",
-            }
-
-            status_icon = status_indicators.get(status, "○")
-            vuln_count = self._agent_vulnerability_count(agent_id)
-            vuln_indicator = f" ({vuln_count})" if vuln_count > 0 else ""
-            agent_name = f"{status_icon} {agent_name_raw}{vuln_indicator}"
+            agent_name = self._format_agent_tree_label(agent_id, agent_data)
 
             if agent_node.label != agent_name:
                 agent_node.set_label(agent_name)
@@ -1551,22 +1535,7 @@ class StrixTUIApp(App):  # type: ignore[misc]
         except (ValueError, Exception):
             return
 
-        agent_name_raw = agent_data.get("name", "Agent")
-
-        status_indicators = {
-            "running": "⚪",
-            "waiting": "⏸",
-            "completed": "🟢",
-            "failed": "🔴",
-            "stopped": "■",
-            "stopping": "○",
-            "llm_failed": "🔴",
-        }
-
-        status_icon = status_indicators.get(status, "○")
-        vuln_count = self._agent_vulnerability_count(agent_id)
-        vuln_indicator = f" ({vuln_count})" if vuln_count > 0 else ""
-        agent_name = f"{status_icon} {agent_name_raw}{vuln_indicator}"
+        agent_name = self._format_agent_tree_label(agent_id, agent_data)
 
         try:
             if parent_id and parent_id in self.agent_nodes:
@@ -1625,23 +1594,7 @@ class StrixTUIApp(App):  # type: ignore[misc]
     def _copy_node_under(self, node_to_copy: TreeNode, new_parent: TreeNode) -> None:
         agent_id = node_to_copy.data["agent_id"]
         agent_data = self.tracer.agents.get(agent_id, {})
-        agent_name_raw = agent_data.get("name", "Agent")
-        status = agent_data.get("status", "running")
-
-        status_indicators = {
-            "running": "⚪",
-            "waiting": "⏸",
-            "completed": "🟢",
-            "failed": "🔴",
-            "stopped": "■",
-            "stopping": "○",
-            "llm_failed": "🔴",
-        }
-
-        status_icon = status_indicators.get(status, "○")
-        vuln_count = self._agent_vulnerability_count(agent_id)
-        vuln_indicator = f" ({vuln_count})" if vuln_count > 0 else ""
-        agent_name = f"{status_icon} {agent_name_raw}{vuln_indicator}"
+        agent_name = self._format_agent_tree_label(agent_id, agent_data)
 
         new_node = new_parent.add(
             agent_name,
@@ -1686,6 +1639,27 @@ class StrixTUIApp(App):  # type: ignore[misc]
 
         parent_node.allow_expand = True
         parent_node.expand()
+
+    def _format_agent_tree_label(self, agent_id: str, agent_data: dict[str, Any]) -> str:
+        agent_name_raw = str(agent_data.get("name", "Agent"))
+        status = str(agent_data.get("status", "running"))
+        model_name = str(agent_data.get("model_name", "") or "")
+
+        status_indicators = {
+            "running": "⚪",
+            "waiting": "⏸",
+            "completed": "🟢",
+            "failed": "🔴",
+            "stopped": "■",
+            "stopping": "○",
+            "llm_failed": "🔴",
+        }
+
+        status_icon = status_indicators.get(status, "○")
+        model_indicator = f" [{model_name}]" if model_name else ""
+        vuln_count = self._agent_vulnerability_count(agent_id)
+        vuln_indicator = f" ({vuln_count})" if vuln_count > 0 else ""
+        return f"{status_icon} {agent_name_raw}{model_indicator}{vuln_indicator}"
 
     def _render_chat_content(self, msg_data: dict[str, Any]) -> Any:
         role = msg_data.get("role")

@@ -89,14 +89,18 @@ class BaseAgent(metaclass=AgentMeta):
 
         tracer = get_global_tracer()
         if tracer:
+            model_name = getattr(self.llm_config, "model_name", None)
             tracer.log_agent_creation(
                 agent_id=self.state.agent_id,
                 name=self.state.agent_name,
                 task=self.state.task,
                 parent_id=self.state.parent_id,
+                model_name=model_name,
             )
             if self.state.parent_id is None:
-                scan_config = tracer.scan_config or {}
+                scan_config = dict(tracer.scan_config or {})
+                if model_name:
+                    scan_config["model_name"] = model_name
                 exec_id = tracer.log_tool_execution_start(
                     agent_id=self.state.agent_id,
                     tool_name="scan_start_info",
@@ -112,6 +116,7 @@ class BaseAgent(metaclass=AgentMeta):
                         "name": self.state.agent_name,
                         "task": self.state.task,
                         "parent_id": self.state.parent_id,
+                        "model_name": model_name,
                     },
                 )
                 tracer.update_tool_execution(execution_id=exec_id, status="completed", result={})
@@ -127,6 +132,7 @@ class BaseAgent(metaclass=AgentMeta):
             "task": self.state.task,
             "status": "running",
             "parent_id": self.state.parent_id,
+            "model_name": getattr(self.llm_config, "model_name", None),
             "created_at": self.state.start_time,
             "finished_at": None,
             "result": None,
