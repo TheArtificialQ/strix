@@ -272,6 +272,72 @@ def _build_llm_stats(stats_text: Text, total_stats: dict[str, Any]) -> None:
         stats_text.append("0", style="white")
 
 
+def _get_used_model_stats(llm_stats: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    by_model = llm_stats.get("by_model") or {}
+    if not isinstance(by_model, dict):
+        return []
+
+    used_models: list[tuple[str, dict[str, Any]]] = []
+    for model_name, raw_stats in by_model.items():
+        if not isinstance(raw_stats, dict):
+            continue
+
+        input_tokens = int(raw_stats.get("input_tokens", 0) or 0)
+        output_tokens = int(raw_stats.get("output_tokens", 0) or 0)
+        total_tokens = int(raw_stats.get("total_tokens", input_tokens + output_tokens) or 0)
+        normalized = {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cached_tokens": int(raw_stats.get("cached_tokens", 0) or 0),
+            "cost": float(raw_stats.get("cost", 0.0) or 0.0),
+            "requests": int(raw_stats.get("requests", 0) or 0),
+            "total_tokens": total_tokens,
+        }
+
+        if (
+            normalized["requests"] <= 0
+            and normalized["total_tokens"] <= 0
+            and normalized["cost"] <= 0
+        ):
+            continue
+
+        used_models.append((str(model_name), normalized))
+
+    used_models.sort(
+        key=lambda item: (-float(item[1]["cost"]), -int(item[1]["requests"]), item[0])
+    )
+    return used_models
+
+
+def _append_model_breakdown(
+    stats_text: Text,
+    llm_stats: dict[str, Any],
+    *,
+    cost_precision: int,
+) -> None:
+    used_models = _get_used_model_stats(llm_stats)
+    if len(used_models) <= 1:
+        return
+
+    stats_text.append("\n")
+    stats_text.append("By Model", style="dim")
+
+    for model_name, model_stats in used_models:
+        stats_text.append("\n")
+        stats_text.append(model_name, style="white")
+        stats_text.append(": ", style="dim white")
+        stats_text.append(
+            f"{format_token_count(model_stats['total_tokens'])} tokens",
+            style="white",
+        )
+        if float(model_stats["cost"]) > 0:
+            stats_text.append(" · ", style="dim white")
+            stats_text.append(
+                f"${float(model_stats['cost']):.{cost_precision}f}",
+                style="white",
+            )
+
+
 def build_final_stats_text(tracer: Any) -> Text:
     """Build stats text for final output with detailed messages and LLM usage."""
     stats_text = Text()
@@ -293,6 +359,7 @@ def build_final_stats_text(tracer: Any) -> Text:
 
     llm_stats = tracer.get_total_llm_stats()
     _build_llm_stats(stats_text, llm_stats["total"])
+    _append_model_breakdown(stats_text, llm_stats, cost_precision=4)
 
     return stats_text
 
@@ -372,6 +439,8 @@ def build_live_stats_text(tracer: Any, agent_config: dict[str, Any] | None = Non
     stats_text.append("Cost ", style="dim")
     stats_text.append(f"${total_stats['cost']:.4f}", style="#fbbf24")
 
+    _append_model_breakdown(stats_text, llm_stats, cost_precision=4)
+
     return stats_text
 
 
@@ -401,6 +470,8 @@ def build_tui_stats_text(tracer: Any, agent_config: dict[str, Any] | None = None
     if total_stats["cost"] > 0:
         stats_text.append(" · ", style="white")
         stats_text.append(f"${total_stats['cost']:.2f}", style="white")
+
+    _append_model_breakdown(stats_text, llm_stats, cost_precision=2)
 
     caido_url = getattr(tracer, "caido_url", None)
     if caido_url:

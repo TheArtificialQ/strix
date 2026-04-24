@@ -32,17 +32,33 @@ def _empty_llm_stats_totals() -> dict[str, int | float]:
     }
 
 
+def _add_to_llm_stats_totals(
+    target: dict[str, int | float], stats: dict[str, Any], /
+) -> None:
+    target["input_tokens"] += int(stats.get("input_tokens", 0) or 0)
+    target["output_tokens"] += int(stats.get("output_tokens", 0) or 0)
+    target["cached_tokens"] += int(stats.get("cached_tokens", 0) or 0)
+    target["cost"] += float(stats.get("cost", 0.0) or 0.0)
+    target["requests"] += int(stats.get("requests", 0) or 0)
+
+
 _completed_agent_llm_totals: dict[str, int | float] = _empty_llm_stats_totals()
+_completed_agent_llm_totals_by_model: dict[str, dict[str, int | float]] = {}
 
 _agent_states: dict[str, Any] = {}
 
 
-def _snapshot_agent_llm_stats(agent: Any) -> dict[str, int | float] | None:
+def _snapshot_agent_llm_stats(agent: Any) -> dict[str, Any] | None:
     if not hasattr(agent, "llm") or not hasattr(agent.llm, "_total_stats"):
         return None
 
     stats = agent.llm._total_stats
+    model_name = getattr(getattr(agent, "llm_config", None), "model_name", None)
+    if not model_name:
+        model_name = getattr(getattr(getattr(agent, "llm", None), "config", None), "model_name", None)
+
     return {
+        "model_name": model_name or "unknown",
         "input_tokens": stats.input_tokens,
         "output_tokens": stats.output_tokens,
         "cached_tokens": stats.cached_tokens,
@@ -55,11 +71,14 @@ def _finalize_agent_llm_stats(agent_id: str, agent: Any) -> None:
     stats = _snapshot_agent_llm_stats(agent)
     with _agent_llm_stats_lock:
         if stats is not None:
-            _completed_agent_llm_totals["input_tokens"] += int(stats["input_tokens"])
-            _completed_agent_llm_totals["output_tokens"] += int(stats["output_tokens"])
-            _completed_agent_llm_totals["cached_tokens"] += int(stats["cached_tokens"])
-            _completed_agent_llm_totals["cost"] += float(stats["cost"])
-            _completed_agent_llm_totals["requests"] += int(stats["requests"])
+            _add_to_llm_stats_totals(_completed_agent_llm_totals, stats)
+
+            model_name = str(stats.get("model_name") or "unknown")
+            model_totals = _completed_agent_llm_totals_by_model.setdefault(
+                model_name,
+                _empty_llm_stats_totals(),
+            )
+            _add_to_llm_stats_totals(model_totals, stats)
 
             node = _agent_graph["nodes"].get(agent_id)
             if node is not None:

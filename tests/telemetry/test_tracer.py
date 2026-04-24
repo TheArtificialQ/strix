@@ -276,12 +276,13 @@ def test_get_total_llm_stats_includes_completed_subagents(monkeypatch, tmp_path)
             self.requests = requests
 
     class DummyLLM:
-        def __init__(self, stats: DummyStats) -> None:
+        def __init__(self, stats: DummyStats, model_name: str) -> None:
             self._total_stats = stats
+            self.config = types.SimpleNamespace(model_name=model_name)
 
     class DummyAgent:
-        def __init__(self, stats: DummyStats) -> None:
-            self.llm = DummyLLM(stats)
+        def __init__(self, stats: DummyStats, model_name: str) -> None:
+            self.llm = DummyLLM(stats, model_name)
 
     tracer = Tracer("cost-rollup")
     set_global_tracer(tracer)
@@ -297,7 +298,8 @@ def test_get_total_llm_stats_includes_completed_subagents(monkeypatch, tmp_path)
                     cached_tokens=100,
                     cost=0.12345,
                     requests=2,
-                )
+                ),
+                "openai/gpt-5.4",
             )
         },
     )
@@ -312,6 +314,19 @@ def test_get_total_llm_stats_includes_completed_subagents(monkeypatch, tmp_path)
             "requests": 3,
         },
     )
+    monkeypatch.setattr(
+        agents_graph_actions,
+        "_completed_agent_llm_totals_by_model",
+        {
+            "openai/gpt-4.1-mini": {
+                "input_tokens": 2_000,
+                "output_tokens": 500,
+                "cached_tokens": 400,
+                "cost": 0.54321,
+                "requests": 3,
+            }
+        },
+    )
 
     stats = tracer.get_total_llm_stats()
 
@@ -323,6 +338,24 @@ def test_get_total_llm_stats_includes_completed_subagents(monkeypatch, tmp_path)
         "requests": 5,
     }
     assert stats["total_tokens"] == 3_750
+    assert stats["by_model"] == {
+        "openai/gpt-4.1-mini": {
+            "input_tokens": 2_000,
+            "output_tokens": 500,
+            "cached_tokens": 400,
+            "cost": 0.5432,
+            "requests": 3,
+            "total_tokens": 2_500,
+        },
+        "openai/gpt-5.4": {
+            "input_tokens": 1_000,
+            "output_tokens": 250,
+            "cached_tokens": 100,
+            "cost": 0.1235,
+            "requests": 2,
+            "total_tokens": 1_250,
+        },
+    }
 
 
 def test_run_metadata_is_only_on_run_lifecycle_events(monkeypatch, tmp_path) -> None:

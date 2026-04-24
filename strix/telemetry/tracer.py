@@ -913,35 +913,79 @@ class Tracer:
         from strix.tools.agents_graph.agents_graph_actions import (
             _agent_instances,
             _completed_agent_llm_totals,
+            _completed_agent_llm_totals_by_model,
             _agent_llm_stats_lock,
+            _snapshot_agent_llm_stats,
         )
+
+        def _normalize_stats(stats: dict[str, Any] | None = None) -> dict[str, int | float]:
+            source = stats or {}
+            return {
+                "input_tokens": int(source.get("input_tokens", 0) or 0),
+                "output_tokens": int(source.get("output_tokens", 0) or 0),
+                "cached_tokens": int(source.get("cached_tokens", 0) or 0),
+                "cost": float(source.get("cost", 0.0) or 0.0),
+                "requests": int(source.get("requests", 0) or 0),
+            }
+
+        def _add_stats(target: dict[str, int | float], stats: dict[str, Any]) -> None:
+            target["input_tokens"] += int(stats.get("input_tokens", 0) or 0)
+            target["output_tokens"] += int(stats.get("output_tokens", 0) or 0)
+            target["cached_tokens"] += int(stats.get("cached_tokens", 0) or 0)
+            target["cost"] += float(stats.get("cost", 0.0) or 0.0)
+            target["requests"] += int(stats.get("requests", 0) or 0)
 
         with _agent_llm_stats_lock:
             completed_totals = dict(_completed_agent_llm_totals)
+            completed_by_model = {
+                str(model): dict(model_stats)
+                for model, model_stats in _completed_agent_llm_totals_by_model.items()
+            }
             active_agents = list(_agent_instances.values())
 
-        total_stats = {
-            "input_tokens": int(completed_totals.get("input_tokens", 0) or 0),
-            "output_tokens": int(completed_totals.get("output_tokens", 0) or 0),
-            "cached_tokens": int(completed_totals.get("cached_tokens", 0) or 0),
-            "cost": float(completed_totals.get("cost", 0.0) or 0.0),
-            "requests": int(completed_totals.get("requests", 0) or 0),
+        total_stats = _normalize_stats(completed_totals)
+        by_model = {
+            model: _normalize_stats(model_stats) for model, model_stats in completed_by_model.items()
         }
 
         for agent_instance in active_agents:
-            if hasattr(agent_instance, "llm") and hasattr(agent_instance.llm, "_total_stats"):
-                agent_stats = agent_instance.llm._total_stats
-                total_stats["input_tokens"] += agent_stats.input_tokens
-                total_stats["output_tokens"] += agent_stats.output_tokens
-                total_stats["cached_tokens"] += agent_stats.cached_tokens
-                total_stats["cost"] += agent_stats.cost
-                total_stats["requests"] += agent_stats.requests
+            agent_stats = _snapshot_agent_llm_stats(agent_instance)
+            if agent_stats is None:
+                continue
+
+            _add_stats(total_stats, agent_stats)
+
+            model_name = str(agent_stats.get("model_name") or "unknown")
+            model_totals = by_model.setdefault(model_name, _normalize_stats())
+            _add_stats(model_totals, agent_stats)
 
         total_stats["cost"] = round(total_stats["cost"], 4)
+
+        by_model_with_usage: list[tuple[str, dict[str, int | float]]] = []
+        for model_name, model_stats in by_model.items():
+            normalized = _normalize_stats(model_stats)
+            normalized["cost"] = round(normalized["cost"], 4)
+            total_tokens = normalized["input_tokens"] + normalized["output_tokens"]
+            if normalized["requests"] <= 0 and total_tokens <= 0 and normalized["cost"] <= 0:
+                continue
+            by_model_with_usage.append(
+                (
+                    model_name,
+                    {
+                        **normalized,
+                        "total_tokens": total_tokens,
+                    },
+                )
+            )
+
+        by_model_with_usage.sort(
+            key=lambda item: (-float(item[1]["cost"]), -int(item[1]["requests"]), item[0])
+        )
 
         return {
             "total": total_stats,
             "total_tokens": total_stats["input_tokens"] + total_stats["output_tokens"],
+            "by_model": {model: stats for model, stats in by_model_with_usage},
         }
 
     def update_streaming_content(self, agent_id: str, content: str) -> None:
