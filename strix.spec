@@ -1,8 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
 import sys
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
+# Prevent polars CPU check from crashing PyInstaller's isolated subprocesses
+# (required on CPUs without AVX/AVX2 support)
+os.environ['POLARS_SKIP_CPU_CHECK'] = '1'
 
 project_root = Path(SPECPATH)
 strix_root = project_root / 'strix'
@@ -139,7 +144,9 @@ hiddenimports = [
     'strix.skills',
 ]
 
-hiddenimports += collect_submodules('litellm')
+# Note: collect_submodules('litellm') is intentionally omitted — the litellm
+# integration `focus` pulls in polars which requires AVX/AVX2 and crashes
+# PyInstaller's isolated subprocesses with SIGILL on older CPUs.
 hiddenimports += collect_submodules('textual')
 hiddenimports += collect_submodules('rich')
 hiddenimports += collect_submodules('pydantic')
@@ -196,6 +203,11 @@ excludes = [
     'scipy',
     'PIL',
     'cv2',
+
+    # Polars requires AVX/AVX2 CPU instructions; exclude to avoid crashes
+    'polars',
+    'litellm.integrations.focus',
+    'litellm.integrations.focus.serializers',
 ]
 
 a = Analysis(
