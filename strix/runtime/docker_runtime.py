@@ -151,6 +151,7 @@ class DockerRuntime(AbstractRuntime):
                     },
                     "extra_hosts": {HOST_GATEWAY_HOSTNAME: "host-gateway"},
                     "tty": True,
+                    "devices": ["/dev/net/tun:/dev/net/tun:rwm"],
                 }
                 container = self.client.containers.run(image_name, **run_kwargs)
 
