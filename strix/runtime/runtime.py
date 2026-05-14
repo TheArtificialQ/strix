@@ -19,6 +19,7 @@ class AbstractRuntime(ABC):
         existing_token: str | None = None,
         local_sources: list[dict[str, str]] | None = None,
         setup_script: str | None = None,
+        network: str | None = None,
     ) -> SandboxInfo:
         raise NotImplementedError
 
