@@ -410,7 +410,16 @@ def _slugify_for_run_name(text: str, max_length: int = 32) -> str:
     return text or "pentest"
 
 
-def _derive_target_label_for_run_name(targets_info: list[dict[str, Any]] | None) -> str:  # noqa: PLR0911
+def _path_safe_run_component(value: Any, fallback: str) -> str:
+    text = str(value or "").strip()
+    text = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "-", text)
+    text = re.sub(r"\s+", " ", text).strip(" .")
+    return text or fallback
+
+
+def _derive_target_label_for_run_name(  # noqa: PLR0911
+    targets_info: list[dict[str, Any]] | None,
+) -> str:
     if not targets_info:
         return "pentest"
 
@@ -456,6 +465,24 @@ def generate_run_name(targets_info: list[dict[str, Any]] | None = None) -> str:
     random_suffix = secrets.token_hex(2)
 
     return f"{slug}_{random_suffix}"
+
+
+def generate_benchmark_run_name(
+    targets_info: list[dict[str, Any]] | None,
+    *,
+    app_version: str,
+    llm_model: str | None,
+) -> str:
+    base_run_name = generate_run_name(targets_info)
+    version = str(app_version or "").strip()
+    if version.lower().startswith("v"):
+        version = version[1:]
+    version = _path_safe_run_component(version, "unknown")
+
+    model_name = re.split(r"[\\/]", str(llm_model or "").strip())[-1]
+    model_name = _path_safe_run_component(model_name, "unknown-model")
+
+    return f"VBlog v0.3 ~ strix v{version} ~ {model_name} ~ {base_run_name}"
 
 
 _SUPPORTED_SCOPE_MODES = {"auto", "diff", "full"}
