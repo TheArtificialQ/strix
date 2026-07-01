@@ -39,7 +39,7 @@ from strix.interface.utils import (
     collect_local_sources,
     dedupe_local_targets,
     find_oversized_local_targets,
-    generate_run_name,
+    generate_benchmark_run_name,
     image_exists,
     infer_target_type,
     is_whitebox_scan,
@@ -543,14 +543,23 @@ Examples:
         )
 
     if args.instruction_file:
-        instruction_path = Path(args.instruction_file)
+        instruction_path = Path(args.instruction_file).expanduser()
         try:
-            with instruction_path.open(encoding="utf-8") as f:
-                args.instruction = f.read().strip()
-                if not args.instruction:
-                    parser.error(f"Instruction file '{instruction_path}' is empty")
-        except Exception as e:
+            resolved_instruction_path = instruction_path.resolve(strict=True)
+        except OSError as e:
             parser.error(f"Failed to read instruction file '{instruction_path}': {e}")
+
+        if not resolved_instruction_path.is_file():
+            parser.error(f"--instruction-file requires a path to a file: {instruction_path}")
+
+        try:
+            args.instruction = resolved_instruction_path.read_text(encoding="utf-8").strip()
+            if not args.instruction:
+                parser.error(f"Instruction file '{resolved_instruction_path}' is empty")
+        except Exception as e:
+            parser.error(f"Failed to read instruction file '{resolved_instruction_path}': {e}")
+
+        args.instruction_file = str(resolved_instruction_path)
 
     args.user_explicit_instruction = args.instruction if args.resume else None
 
@@ -624,6 +633,7 @@ Examples:
 def _persist_run_record(args: argparse.Namespace) -> None:
     run_dir = run_dir_for(args.run_name)
     run_dir.mkdir(parents=True, exist_ok=True)
+    settings = load_settings()
     run_record = {
         "run_id": args.run_name,
         "run_name": args.run_name,
@@ -633,6 +643,7 @@ def _persist_run_record(args: argparse.Namespace) -> None:
         "targets_info": args.targets_info,
         "scan_mode": args.scan_mode,
         "instruction": args.instruction,
+        "instruction_file": args.instruction_file,
         "non_interactive": args.non_interactive,
         "local_sources": getattr(args, "local_sources", []),
         "diff_scope": getattr(args, "diff_scope", {"active": False}),
@@ -640,6 +651,8 @@ def _persist_run_record(args: argparse.Namespace) -> None:
         "diff_base": args.diff_base,
         "setup_script": args.setup_script,
         "docker_network": args.docker_network,
+        "llm_model": settings.llm.model,
+        "app_version": get_version(),
     }
     write_run_record(run_dir, run_record)
 
@@ -680,6 +693,8 @@ def _load_resume_state(args: argparse.Namespace, parser: argparse.ArgumentParser
 
     if args.instruction is None:
         args.instruction = state.get("instruction")
+    if args.instruction_file is None and isinstance(state.get("instruction_file"), str):
+        args.instruction_file = state.get("instruction_file")
     if state.get("local_sources"):
         args.local_sources = state.get("local_sources")
     if state.get("diff_scope"):
@@ -832,7 +847,14 @@ def main() -> None:
 
     persist_current()
 
-    args.run_name = args.resume or generate_run_name(args.targets_info)
+    if args.resume:
+        args.run_name = args.resume
+    else:
+        args.run_name = generate_benchmark_run_name(
+            args.targets_info,
+            app_version=get_version(),
+            llm_model=load_settings().llm.model,
+        )
 
     if not args.resume:
         for target_info in args.targets_info:
