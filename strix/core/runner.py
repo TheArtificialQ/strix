@@ -147,6 +147,7 @@ async def run_strix_scan(
         image=image,
         local_sources=local_sources or [],
         setup_script=scan_config.get("setup_script"),
+        docker_network=scan_config.get("docker_network"),
         setup_script_event_sink=setup_script_event_sink,
     )
     logger.info("Sandbox ready for scan %s", scan_id)

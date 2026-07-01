@@ -95,6 +95,7 @@ async def run_cli(args: Any) -> None:  # noqa: PLR0915
         "diff_base": getattr(args, "diff_base", None),
         "resume_instruction": getattr(args, "user_explicit_instruction", None) or "",
         "setup_script": getattr(args, "setup_script", None),
+        "docker_network": getattr(args, "docker_network", None),
     }
 
     report_state = ReportState(args.run_name)

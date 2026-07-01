@@ -334,6 +334,26 @@ def _resolve_setup_script_path(
     return str(resolved)
 
 
+def _normalize_docker_network(
+    value: str | None,
+    parser: argparse.ArgumentParser,
+) -> str | None:
+    if value is None:
+        return None
+
+    docker_network = value.strip()
+    if not docker_network:
+        parser.error("--docker-network requires a non-empty Docker network name or mode")
+
+    if docker_network.lower() == "none":
+        parser.error("--docker-network none is not supported because Strix needs networking")
+
+    if docker_network.lower() in {"bridge", "host"}:
+        return docker_network.lower()
+
+    return docker_network
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Strix Multi-Agent Cybersecurity Penetration Testing Tool",
@@ -355,6 +375,9 @@ Examples:
 
   # Prepare the sandbox before scanning
   strix --target ./my-project --setup-script ./scripts/prepare-sandbox.sh
+
+  # Connect the sandbox to a Docker network
+  strix --target https://app.internal --docker-network my-network
 
   # Domain penetration test
   strix --target example.com
@@ -409,6 +432,17 @@ Examples:
             "first step before the scan begins. Useful for installing dependencies, "
             "seeding databases, establishing VPN connections, or other environment "
             "preparation."
+        ),
+    )
+    parser.add_argument(
+        "--docker-network",
+        type=str,
+        dest="docker_network",
+        metavar="NETWORK",
+        help=(
+            "Docker network to connect the container to. Accepts a network name "
+            "(e.g., 'my-network') or a built-in mode such as 'host' or 'bridge'. "
+            "Useful when the target is only reachable through a specific Docker network."
         ),
     )
     parser.add_argument(
@@ -582,6 +616,7 @@ Examples:
             )
 
     args.setup_script = _resolve_setup_script_path(args.setup_script, parser)
+    args.docker_network = _normalize_docker_network(args.docker_network, parser)
 
     return args
 
@@ -604,6 +639,7 @@ def _persist_run_record(args: argparse.Namespace) -> None:
         "scope_mode": args.scope_mode,
         "diff_base": args.diff_base,
         "setup_script": args.setup_script,
+        "docker_network": args.docker_network,
     }
     write_run_record(run_dir, run_record)
 
@@ -650,6 +686,8 @@ def _load_resume_state(args: argparse.Namespace, parser: argparse.ArgumentParser
         args.diff_scope = state.get("diff_scope")
     if args.setup_script is None and state.get("setup_script"):
         args.setup_script = state.get("setup_script")
+    if args.docker_network is None and state.get("docker_network"):
+        args.docker_network = state.get("docker_network")
     persisted_scan_mode = state.get("scan_mode")
     if persisted_scan_mode and args.scan_mode == "deep":
         args.scan_mode = persisted_scan_mode

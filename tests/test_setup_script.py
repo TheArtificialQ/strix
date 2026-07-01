@@ -153,8 +153,9 @@ async def test_create_or_reuse_runs_setup_after_runtime_bootstrap(
         manifest: Any,
         exposed_ports: tuple[int, ...],
         bind_mounts: list[dict[str, Any]] | None = None,
+        docker_network: str | None = None,
     ) -> tuple[object, FakeSession]:
-        del image, manifest, exposed_ports
+        del image, manifest, exposed_ports, docker_network
         events.append("backend")
         captured_mounts.extend(bind_mounts or [])
         return object(), session
