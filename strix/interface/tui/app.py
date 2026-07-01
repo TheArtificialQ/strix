@@ -749,6 +749,7 @@ class StrixTUIApp(App):  # type: ignore[misc]
             "llm_model": load_settings().llm.model,
             "app_version": get_package_version(),
             "setup_script": getattr(args, "setup_script", None),
+            "docker_network": getattr(args, "docker_network", None),
         }
 
     def _setup_cleanup_handlers(self) -> None:

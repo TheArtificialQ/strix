@@ -180,6 +180,9 @@ strix --target api.your-app.com --instruction-file ./instruction.md
 # Prepare the sandbox before scanning (install dependencies, seed data, connect VPN, etc.)
 strix --target ./app-directory --setup-script ./scripts/prepare-sandbox.sh
 
+# Connect the sandbox to a Docker network
+strix --target https://app.internal --docker-network my-network
+
 # Force PR diff-scope against a specific base branch
 strix -n --target ./ --scan-mode quick --scope-mode diff --diff-base origin/main
 ```

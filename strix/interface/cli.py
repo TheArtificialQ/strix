@@ -97,6 +97,7 @@ async def run_cli(args: Any) -> None:  # noqa: PLR0915
         "instruction_file": getattr(args, "instruction_file", None),
         "llm_model": load_settings().llm.model,
         "setup_script": getattr(args, "setup_script", None),
+        "docker_network": getattr(args, "docker_network", None),
     }
 
     report_state = ReportState(args.run_name)
