@@ -172,6 +172,7 @@ async def create_or_reuse(
     *,
     image: str,
     local_sources: list[dict[str, Any]],
+    docker_network: str | None = None,
     setup_script: str | None = None,
     setup_script_event_sink: SetupScriptEventSink | None = None,
 ) -> dict[str, Any]:
@@ -225,6 +226,7 @@ async def create_or_reuse(
         manifest=manifest,
         exposed_ports=(_CONTAINER_CAIDO_PORT,),
         bind_mounts=bind_mounts,
+        docker_network=docker_network,
     )
 
     caido_endpoint = await session.resolve_exposed_port(_CONTAINER_CAIDO_PORT)

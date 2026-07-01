@@ -176,6 +176,9 @@ strix --target api.your-app.com --instruction "Focus on business logic flaws and
 # Provide detailed instructions through file (e.g., rules of engagement, scope, exclusions)
 strix --target api.your-app.com --instruction-file ./instruction.md
 
+# Connect the sandbox to a Docker network
+strix --target https://app.internal --docker-network my-network
+
 # Prepare the sandbox before scanning (install dependencies, seed data, connect VPN, etc.)
 strix --target ./app-directory --setup-script ./scripts/prepare-sandbox.sh
 

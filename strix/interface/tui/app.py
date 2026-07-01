@@ -744,6 +744,7 @@ class StrixTUIApp(App):  # type: ignore[misc]
             "scope_mode": getattr(args, "scope_mode", "auto"),
             "diff_base": getattr(args, "diff_base", None),
             "resume_instruction": getattr(args, "user_explicit_instruction", None) or "",
+            "docker_network": getattr(args, "docker_network", None),
             "setup_script": getattr(args, "setup_script", None),
         }
 

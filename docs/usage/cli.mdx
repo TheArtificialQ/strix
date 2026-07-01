@@ -29,6 +29,13 @@ strix --target <target> [options]
   </Note>
 </ParamField>
 
+<ParamField path="--docker-network" type="string">
+  Docker network to connect the container to. Accepts a network name such as `my-network`
+  or a built-in mode such as `host` or `bridge`.
+
+  Use this when the target is only reachable through a specific Docker network.
+</ParamField>
+
 <ParamField path="--setup-script" type="string">
   Path to a bash script to execute inside the Docker container as the first step before the scan begins.
   Use this to install dependencies, seed databases, establish VPN connections, or perform other environment preparation.
@@ -87,6 +94,9 @@ strix -t https://github.com/org/app -t https://staging.example.com
 
 # Large local repository — bind-mount instead of copying it in
 strix --mount ./huge-monorepo
+
+# Connect the sandbox to a Docker network
+strix --target https://app.internal --docker-network my-network
 
 # Prepare the sandbox before scanning
 strix --target ./app --setup-script ./scripts/prepare-sandbox.sh

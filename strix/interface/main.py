@@ -323,6 +323,46 @@ def _resolve_setup_script_path(
     return str(resolved)
 
 
+def _normalize_docker_network(
+    value: str | None,
+    parser: argparse.ArgumentParser,
+) -> str | None:
+    if value is None:
+        return None
+
+    docker_network = value.strip()
+    if not docker_network:
+        parser.error("--docker-network requires a non-empty Docker network name or mode")
+
+    if docker_network.lower() == "none":
+        parser.error("--docker-network none is not supported because Strix needs networking")
+
+    if docker_network.lower() in {"bridge", "host"}:
+        return docker_network.lower()
+
+    return docker_network
+
+
+def _normalize_docker_network(
+    value: str | None,
+    parser: argparse.ArgumentParser,
+) -> str | None:
+    if value is None:
+        return None
+
+    docker_network = value.strip()
+    if not docker_network:
+        parser.error("--docker-network requires a non-empty Docker network name or mode")
+
+    if docker_network.lower() == "none":
+        parser.error("--docker-network none is not supported because Strix needs networking")
+
+    if docker_network.lower() in {"bridge", "host"}:
+        return docker_network.lower()
+
+    return docker_network
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Strix Multi-Agent Cybersecurity Penetration Testing Tool",
@@ -341,6 +381,9 @@ Examples:
 
   # Large local repository (bind-mounted read-only instead of copied)
   strix --mount ./huge-monorepo
+
+  # Connect the sandbox to a Docker network
+  strix --target https://app.internal --docker-network my-network
 
   # Prepare the sandbox before scanning
   strix --target ./my-project --setup-script ./scripts/prepare-sandbox.sh
@@ -388,6 +431,17 @@ Examples:
         help="Bind-mount a local directory into the sandbox (read-only) instead of "
         "copying it file-by-file. Use this for large repositories that are too big to "
         "stream into the container. Can be specified multiple times.",
+    )
+    parser.add_argument(
+        "--docker-network",
+        type=str,
+        dest="docker_network",
+        metavar="NETWORK",
+        help=(
+            "Docker network to connect the container to. Accepts a network name "
+            "(e.g., 'my-network') or a built-in mode such as 'host' or 'bridge'. "
+            "Useful when the target is only reachable through a specific Docker network."
+        ),
     )
     parser.add_argument(
         "--setup-script",
@@ -563,6 +617,8 @@ Examples:
                 "--mount <path> to bind-mount the directory instead of copying it."
             )
 
+    args.docker_network = _normalize_docker_network(args.docker_network, parser)
+
     args.setup_script = _resolve_setup_script_path(args.setup_script, parser)
 
     return args
@@ -585,6 +641,7 @@ def _persist_run_record(args: argparse.Namespace) -> None:
         "diff_scope": getattr(args, "diff_scope", {"active": False}),
         "scope_mode": args.scope_mode,
         "diff_base": args.diff_base,
+        "docker_network": args.docker_network,
         "setup_script": args.setup_script,
     }
     write_run_record(run_dir, run_record)
@@ -630,6 +687,8 @@ def _load_resume_state(args: argparse.Namespace, parser: argparse.ArgumentParser
         args.local_sources = state.get("local_sources")
     if state.get("diff_scope"):
         args.diff_scope = state.get("diff_scope")
+    if args.docker_network is None and state.get("docker_network"):
+        args.docker_network = state.get("docker_network")
     if args.setup_script is None and state.get("setup_script"):
         args.setup_script = state.get("setup_script")
     persisted_scan_mode = state.get("scan_mode")
