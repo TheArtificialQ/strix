@@ -9,17 +9,18 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
 from strix.interface.utils import (
     build_mount_targets_info,
     collect_local_sources,
     dedupe_local_targets,
     directory_size_bytes,
     find_oversized_local_targets,
+    generate_benchmark_run_name,
 )
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_file(path: Path, size: int) -> None:
@@ -186,3 +187,27 @@ def test_dedupe_collapses_duplicate_mounts() -> None:
         [_local_target("/repo", mount=True), _local_target("/repo", mount=True)]
     )
     assert len(result) == 1
+
+
+def test_generate_benchmark_run_name_wraps_target_suffix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        generate_benchmark_run_name.__globals__["secrets"],
+        "token_hex",
+        lambda _n: "abcd",
+    )
+
+    run_name = generate_benchmark_run_name(
+        [
+            {
+                "type": "web_application",
+                "details": {"target_url": "https://blog.test"},
+                "original": "",
+            }
+        ],
+        app_version="1.2.3",
+        llm_model=r"openai\gpt-5.4:preview",
+    )
+
+    assert run_name == "VBlog v0.3 ~ strix v1.2.3 ~ gpt-5.4-preview ~ blog-test_abcd"

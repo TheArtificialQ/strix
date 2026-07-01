@@ -94,6 +94,8 @@ async def run_cli(args: Any) -> None:  # noqa: PLR0915
         "scope_mode": getattr(args, "scope_mode", "auto"),
         "diff_base": getattr(args, "diff_base", None),
         "resume_instruction": getattr(args, "user_explicit_instruction", None) or "",
+        "instruction_file": getattr(args, "instruction_file", None),
+        "llm_model": load_settings().llm.model,
     }
 
     report_state = ReportState(args.run_name)
