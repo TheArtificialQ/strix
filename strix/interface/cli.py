@@ -96,6 +96,7 @@ async def run_cli(args: Any) -> None:  # noqa: PLR0915
         "resume_instruction": getattr(args, "user_explicit_instruction", None) or "",
         "instruction_file": getattr(args, "instruction_file", None),
         "llm_model": load_settings().llm.model,
+        "setup_script": getattr(args, "setup_script", None),
     }
 
     report_state = ReportState(args.run_name)
