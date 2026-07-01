@@ -29,6 +29,13 @@ strix --target <target> [options]
   </Note>
 </ParamField>
 
+<ParamField path="--setup-script" type="string">
+  Path to a bash script to execute inside the Docker container as the first step before the scan begins.
+  Use this to install dependencies, seed databases, establish VPN connections, or perform other environment preparation.
+
+  The script is bind-mounted read-only into the sandbox and run with `bash`.
+</ParamField>
+
 <ParamField path="--instruction" type="string">
   Custom instructions for the scan. Use for credentials, focus areas, or specific testing approaches.
 </ParamField>
@@ -80,6 +87,9 @@ strix -t https://github.com/org/app -t https://staging.example.com
 
 # Large local repository — bind-mount instead of copying it in
 strix --mount ./huge-monorepo
+
+# Prepare the sandbox before scanning
+strix --target ./app --setup-script ./scripts/prepare-sandbox.sh
 ```
 
 ## Exit Codes

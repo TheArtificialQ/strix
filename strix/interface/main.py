@@ -304,6 +304,25 @@ def get_version() -> str:
         return "unknown"
 
 
+def _resolve_setup_script_path(
+    value: str | None,
+    parser: argparse.ArgumentParser,
+) -> str | None:
+    if value is None:
+        return None
+
+    setup_script = Path(value).expanduser()
+    try:
+        resolved = setup_script.resolve(strict=True)
+    except OSError as exc:
+        parser.error(f"--setup-script path '{value}' is not readable: {exc}")
+
+    if not resolved.is_file():
+        parser.error(f"--setup-script requires a path to a file: {value}")
+
+    return str(resolved)
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Strix Multi-Agent Cybersecurity Penetration Testing Tool",
@@ -322,6 +341,9 @@ Examples:
 
   # Large local repository (bind-mounted read-only instead of copied)
   strix --mount ./huge-monorepo
+
+  # Prepare the sandbox before scanning
+  strix --target ./my-project --setup-script ./scripts/prepare-sandbox.sh
 
   # Domain penetration test
   strix --target example.com
@@ -366,6 +388,17 @@ Examples:
         help="Bind-mount a local directory into the sandbox (read-only) instead of "
         "copying it file-by-file. Use this for large repositories that are too big to "
         "stream into the container. Can be specified multiple times.",
+    )
+    parser.add_argument(
+        "--setup-script",
+        type=str,
+        metavar="PATH",
+        help=(
+            "Path to a bash script to execute inside the Docker container as the "
+            "first step before the scan begins. Useful for installing dependencies, "
+            "seeding databases, establishing VPN connections, or other environment "
+            "preparation."
+        ),
     )
     parser.add_argument(
         "--instruction",
@@ -530,6 +563,8 @@ Examples:
                 "--mount <path> to bind-mount the directory instead of copying it."
             )
 
+    args.setup_script = _resolve_setup_script_path(args.setup_script, parser)
+
     return args
 
 
@@ -550,6 +585,7 @@ def _persist_run_record(args: argparse.Namespace) -> None:
         "diff_scope": getattr(args, "diff_scope", {"active": False}),
         "scope_mode": args.scope_mode,
         "diff_base": args.diff_base,
+        "setup_script": args.setup_script,
     }
     write_run_record(run_dir, run_record)
 
@@ -594,6 +630,8 @@ def _load_resume_state(args: argparse.Namespace, parser: argparse.ArgumentParser
         args.local_sources = state.get("local_sources")
     if state.get("diff_scope"):
         args.diff_scope = state.get("diff_scope")
+    if args.setup_script is None and state.get("setup_script"):
+        args.setup_script = state.get("setup_script")
     persisted_scan_mode = state.get("scan_mode")
     if persisted_scan_mode and args.scan_mode == "deep":
         args.scan_mode = persisted_scan_mode
