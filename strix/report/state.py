@@ -13,8 +13,6 @@ from strix.report.usage import LLMUsageLedger
 from strix.report.writer import (
     read_run_record,
     write_executive_report,
-    write_input_artifacts,
-    write_report_readme,
     write_run_record,
     write_vulnerabilities,
 )
@@ -284,14 +282,8 @@ class ReportState:
                 "local_sources": config.get("local_sources", []),
                 "scope_mode": config.get("scope_mode", "auto"),
                 "diff_base": config.get("diff_base"),
-                "instruction_file": config.get("instruction_file"),
-                "setup_script": config.get("setup_script"),
-                "docker_network": config.get("docker_network"),
             }
         )
-        for key in ("llm_model", "app_version"):
-            if config.get(key) is not None:
-                self.run_record[key] = config[key]
 
     def save_run_data(self, mark_complete: bool = False, status: str | None = None) -> None:
         if mark_complete:
@@ -343,8 +335,6 @@ class ReportState:
             if self.vulnerability_reports:
                 write_vulnerabilities(run_dir, self.vulnerability_reports, self._saved_vuln_ids)
 
-            write_input_artifacts(run_dir, self.run_record)
-            write_report_readme(run_dir, self.run_record)
             write_run_record(run_dir, self.run_record)
 
             logger.info("Essential scan data saved to: %s", run_dir)
