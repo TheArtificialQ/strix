@@ -356,9 +356,20 @@ def litellm_cost_callback(
 ) -> None:
     """LiteLLM ``success_callback`` adapter; forwards observed cost to the active scan."""
     cost: float | None = None
-    raw = kwargs.get("response_cost") if isinstance(kwargs, dict) else None
-    if isinstance(raw, int | float) and raw > 0:
-        cost = float(raw)
+
+    # TEMPORARY OpenRouter-only workaround. On the streaming path LiteLLM drops
+    # OpenRouter's billed ``usage.cost`` and falls back to its (missing/stale)
+    # static price map, so ``response_cost`` here is $0 or ~100x wrong for
+    # OpenRouter models. ``_patch_openrouter_streaming_cost_passthrough`` in
+    # strix.config.models carries the real billed value onto ``usage.cost``;
+    # prefer it when — and only when — the provider is OpenRouter. Remove both
+    # once the upstream LiteLLM fixes land (see strix.config.models for links).
+    cost = _openrouter_streamed_billed_cost(kwargs, completion_response)
+
+    if cost is None:
+        raw = kwargs.get("response_cost") if isinstance(kwargs, dict) else None
+        if isinstance(raw, int | float) and raw > 0:
+            cost = float(raw)
 
     if cost is None:
         hidden = getattr(completion_response, "_hidden_params", None) or {}
@@ -388,3 +399,24 @@ def litellm_cost_callback(
         report_state.record_observed_llm_cost(cost)
     except Exception:
         logger.exception("Failed to record observed LiteLLM cost")
+
+
+def _openrouter_streamed_billed_cost(kwargs: Any, completion_response: Any) -> float | None:
+    """Billed ``usage.cost`` for a streamed OpenRouter call, else ``None``.
+
+    TEMPORARY OpenRouter-only workaround (see ``litellm_cost_callback`` and
+    ``strix.config.models._patch_openrouter_streaming_cost_passthrough``).
+    Returns a value ONLY when LiteLLM reports the provider as OpenRouter, so
+    the cost accounting of every other provider is left untouched.
+    """
+    provider = kwargs.get("custom_llm_provider") if isinstance(kwargs, dict) else None
+    if provider != "openrouter":
+        return None
+
+    usage = getattr(completion_response, "usage", None)
+    cost = getattr(usage, "cost", None)
+    if isinstance(cost, bool):
+        return None
+    if isinstance(cost, int | float) and cost > 0:
+        return float(cost)
+    return None
